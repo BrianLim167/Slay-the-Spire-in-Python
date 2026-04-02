@@ -123,3 +123,27 @@ def test_e2e(seed, monkeypatch, sleepless):
             end = time.time()
             ansiprint(f"\n\n<green><bold>Game took {end - start:.2f} seconds</bold></green>")
 
+
+def test_debug_give_commands(sleepless):
+    mygame = game.Game(seed=0, debug=True)
+
+    starting_gold = mygame.player.gold
+    starting_deck = len(mygame.player.deck)
+    starting_relics = len(mygame.player.relics)
+    starting_health = mygame.player.health
+
+    assert mygame.handle_debug_command("give gold 25")
+    assert mygame.player.gold == starting_gold + 25
+
+    assert mygame.handle_debug_command("give card anger")
+    assert len(mygame.player.deck) == starting_deck + 1
+    assert any(card.name == "Anger" for card in mygame.player.deck)
+
+    mygame.player.health = max(1, mygame.player.health - 10)
+    assert mygame.handle_debug_command("give hp 5")
+    assert mygame.player.health == min(mygame.player.max_health, starting_health - 5)
+
+    assert mygame.handle_debug_command("give relic anchor")
+    assert len(mygame.player.relics) == starting_relics + 1
+    assert any(relic.name == "Anchor" for relic in mygame.player.relics)
+
