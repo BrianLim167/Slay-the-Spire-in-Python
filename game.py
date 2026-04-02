@@ -107,6 +107,7 @@ class Game:
                 ansiprint("<green>Debug:</green> Cleared deck.")
             elif collection == "relic":
                 self._clear_relics()
+                self.player.relics = []
                 ansiprint("<green>Debug:</green> Cleared relics.")
             else:
                 self.player.potions.clear()
