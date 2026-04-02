@@ -1,5 +1,7 @@
 import builtins
 import random
+import re
+from collections import Counter
 
 import card_catalog
 import game_map
@@ -28,9 +30,7 @@ class Game:
         self.current_encounter = None
 
     def start(self):
-        if self.debug:
-            return self._start_with_debug_input()
-        return self._start_game()
+        return self._start_with_command_input()
 
     def _start_game(self):
         self.game_map.pretty_print()
@@ -41,28 +41,38 @@ class Game:
             self.player.floors += 1
             self.game_map.pretty_print()
 
-    def _start_with_debug_input(self):
+    def _start_with_command_input(self):
         original_input = builtins.input
 
-        def debug_input(prompt=""):
+        def command_input(prompt=""):
             while True:
                 command = original_input(prompt)
-                if self.handle_debug_command(command):
+                if self.handle_command(command):
                     continue
                 return command
 
-        builtins.input = debug_input
+        builtins.input = command_input
         try:
             return self._start_game()
         finally:
             builtins.input = original_input
 
-    def handle_debug_command(self, command: str) -> bool:
-        if not self.debug:
-            return False
+    def handle_command(self, command: str) -> bool:
         command = command.strip()
         if not command:
             return False
+        if command.lower().startswith("give "):
+            return self.handle_debug_command(command)
+        if command.lower().startswith("deck "):
+            return self._handle_collection_command(command, "deck")
+        if command.lower().startswith("relic "):
+            return self._handle_collection_command(command, "relic")
+        return False
+
+    def handle_debug_command(self, command: str) -> bool:
+        if not self.debug:
+            ansiprint("<red>Debug mode is required for 'give'. Run with --debug.</red>")
+            return True
         parts = command.split(maxsplit=2)
         if parts[0].lower() != "give":
             return False
@@ -84,32 +94,155 @@ class Game:
             ansiprint("<red>Unknown debug resource. Use: card, relic, hp, or gold.</red>")
         return True
 
+    def _handle_collection_command(self, command: str, collection: str) -> bool:
+        parts = command.split(maxsplit=2)
+        if len(parts) < 2:
+            return False
+        action = parts[1].lower()
+        if action == "show":
+            if collection == "deck":
+                self._show_deck()
+            else:
+                self._show_relics()
+            return True
+        if not self.debug:
+            ansiprint(f"<red>Debug mode is required for '{collection} {action}'. Run with --debug.</red>")
+            return True
+        if action == "clear":
+            if collection == "deck":
+                self.player.deck.clear()
+                ansiprint("<green>Debug:</green> Cleared deck.")
+            else:
+                self._clear_relics()
+                ansiprint("<green>Debug:</green> Cleared relics.")
+            return True
+        if action not in ("set", "add"):
+            ansiprint(f"<red>Usage: {collection} <show|clear|set|add> ...</red>")
+            return True
+        if len(parts) < 3:
+            ansiprint(f"<red>Usage: {collection} {action} <count> <name>, <name>, ...</red>")
+            return True
+        specs = self._parse_specs(parts[2])
+        if specs is None:
+            return True
+        if collection == "deck":
+            cards = self._build_cards_from_specs(specs)
+            if cards is None:
+                return True
+            if action == "set":
+                self.player.deck = cards
+                ansiprint(f"<green>Debug:</green> Deck set to {len(self.player.deck)} cards.")
+            else:
+                self.player.deck.extend(cards)
+                ansiprint(f"<green>Debug:</green> Added {len(cards)} cards (deck: {len(self.player.deck)}).")
+        else:
+            relics = self._build_relics_from_specs(specs)
+            if relics is None:
+                return True
+            if action == "set":
+                self._clear_relics()
+                self.player.relics = []
+            added = 0
+            for relic in relics:
+                if any(existing.name == relic.name for existing in self.player.relics):
+                    ansiprint(f"<red>Skipping duplicate relic <yellow>{relic.name}</yellow>.</red>")
+                    continue
+                self.player.relics.append(relic)
+                self.bus.publish(Message.ON_RELIC_ADD, (relic, self.player))
+                added += 1
+            ansiprint(f"<green>Debug:</green> Added {added} relic(s) (total: {len(self.player.relics)}).")
+        return True
+
     @staticmethod
     def _normalize_name(name: str) -> str:
         return "".join(char for char in name.lower() if char.isalnum())
 
-    def _give_card(self, card_name: str):
-        requested = self._normalize_name(card_name)
-        card = next(
-            (candidate for candidate in card_catalog.create_all_cards() if self._normalize_name(candidate.name) == requested),
-            None,
-        )
-        if card is None:
-            ansiprint(f"<red>Could not find card '{card_name}'.</red>")
+    def _parse_specs(self, specs: str) -> list[tuple[int, str]] | None:
+        parsed_specs = []
+        for raw_spec in [item.strip() for item in specs.split(",") if item.strip()]:
+            match = re.match(r"^(?:(\d+)\s+)?(.+)$", raw_spec, flags=re.IGNORECASE)
+            if match is None:
+                ansiprint(f"<red>Invalid entry '{raw_spec}'. Use '<count> <name>' or '<name>'.</red>")
+                return None
+            count = int(match.group(1) or 1)
+            name = match.group(2).strip()
+            if count <= 0 or not name:
+                ansiprint(f"<red>Invalid entry '{raw_spec}'. Count must be positive and name required.</red>")
+                return None
+            parsed_specs.append((count, name))
+        if not parsed_specs:
+            ansiprint("<red>No entries provided.</red>")
+            return None
+        return parsed_specs
+
+    def _show_deck(self):
+        if not self.player.deck:
+            ansiprint("Deck is empty.")
             return
+        counts = Counter(card.name for card in self.player.deck)
+        ansiprint(f"<bold>Deck</bold> ({len(self.player.deck)} cards):")
+        for name, count in sorted(counts.items()):
+            ansiprint(f" - {count}x {name}")
+
+    def _show_relics(self):
+        if not self.player.relics:
+            ansiprint("Relics: none")
+            return
+        counts = Counter(relic.name for relic in self.player.relics)
+        ansiprint(f"<bold>Relics</bold> ({len(self.player.relics)}):")
+        for name, count in sorted(counts.items()):
+            ansiprint(f" - {count}x {name}")
+
+    def _build_cards_from_specs(self, specs: list[tuple[int, str]]) -> list:
+        card_lookup = {
+            self._normalize_name(card.name): type(card)
+            for card in card_catalog.create_all_cards()
+        }
+        cards = []
+        for count, name in specs:
+            normalized = self._normalize_name(name)
+            if normalized not in card_lookup:
+                ansiprint(f"<red>Could not find card '{name}'.</red>")
+                return None
+            cards.extend(card_lookup[normalized]() for _ in range(count))
+        return cards
+
+    def _build_relics_from_specs(self, specs: list[tuple[int, str]]) -> list:
+        relic_lookup = {
+            self._normalize_name(relic.name): type(relic)
+            for relic in relic_catalog.create_all_relics()
+        }
+        relics = []
+        for count, name in specs:
+            normalized = self._normalize_name(name)
+            if normalized not in relic_lookup:
+                ansiprint(f"<red>Could not find relic '{name}'.</red>")
+                return None
+            if count > 1:
+                ansiprint(f"<red>Relics are unique; '{name}' can only be added once.</red>")
+                return None
+            relics.append(relic_lookup[normalized]())
+        return relics
+
+    def _clear_relics(self):
+        for relic in self.player.relics:
+            if relic.subscribed:
+                relic.unsubscribe()
+
+    def _give_card(self, card_name: str):
+        cards = self._build_cards_from_specs([(1, card_name)])
+        if cards is None:
+            return
+        card = cards[0]
         self.player.deck.append(card)
         self.bus.publish(Message.ON_CARD_ADD, (self.player, card))
         ansiprint(f"<green>Debug:</green> Added card <yellow>{card.name}</yellow> to deck.")
 
     def _give_relic(self, relic_name: str):
-        requested = self._normalize_name(relic_name)
-        relic = next(
-            (candidate for candidate in relic_catalog.create_all_relics() if self._normalize_name(candidate.name) == requested),
-            None,
-        )
-        if relic is None:
-            ansiprint(f"<red>Could not find relic '{relic_name}'.</red>")
+        relics = self._build_relics_from_specs([(1, relic_name)])
+        if relics is None:
             return
+        relic = relics[0]
         if any(existing.name == relic.name for existing in self.player.relics):
             ansiprint(f"<red>You already have <yellow>{relic.name}</yellow>.</red>")
             return

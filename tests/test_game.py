@@ -147,3 +147,37 @@ def test_debug_give_commands(sleepless):
     assert len(mygame.player.relics) == starting_relics + 1
     assert any(relic.name == "Anchor" for relic in mygame.player.relics)
 
+
+def test_debug_deck_and_relic_commands(sleepless):
+    mygame = game.Game(seed=0, debug=True)
+
+    assert mygame.handle_command("deck set 2 strike, bash")
+    assert len(mygame.player.deck) == 3
+    assert [card.name for card in mygame.player.deck].count("Strike") == 2
+    assert [card.name for card in mygame.player.deck].count("Bash") == 1
+
+    assert mygame.handle_command("deck add anger, 2 defend")
+    assert len(mygame.player.deck) == 6
+    assert [card.name for card in mygame.player.deck].count("Anger") == 1
+    assert [card.name for card in mygame.player.deck].count("Defend") == 2
+
+    assert mygame.handle_command("deck clear")
+    assert len(mygame.player.deck) == 0
+
+    assert mygame.handle_command("relic set anchor")
+    assert len(mygame.player.relics) == 1
+    assert mygame.player.relics[0].name == "Anchor"
+
+    assert mygame.handle_command("relic add akabeko")
+    assert len(mygame.player.relics) == 2
+    assert any(relic.name == "Akabeko" for relic in mygame.player.relics)
+
+    assert mygame.handle_command("relic clear")
+    assert len(mygame.player.relics) == 0
+
+
+def test_show_commands_work_without_debug(sleepless):
+    mygame = game.Game(seed=0, debug=False)
+    assert mygame.handle_command("deck show")
+    assert mygame.handle_command("relic show")
+
