@@ -5,6 +5,7 @@ from collections import Counter
 
 import card_catalog
 import game_map
+import potion_catalog
 import relic_catalog
 from ansi_tags import ansiprint
 from combat import Combat
@@ -44,10 +45,21 @@ class Game:
     def _start_with_command_input(self):
         original_input = builtins.input
 
+        def show_next_encounter_choices():
+            if self.game_map.current is None:
+                return
+            choices = self.game_map.current.children
+            if not choices:
+                return
+            for idx, choice in enumerate(choices):
+                print(f"{idx + 1}: {choice}")
+
         def command_input(prompt=""):
             while True:
                 command = original_input(prompt)
                 if self.handle_command(command):
+                    if "Choose next encounter" in prompt:
+                        show_next_encounter_choices()
                     continue
                 return command
 
@@ -61,38 +73,17 @@ class Game:
         command = command.strip()
         if not command:
             return False
-        if command.lower().startswith("give "):
-            return self.handle_debug_command(command)
         if command.lower().startswith("deck "):
             return self._handle_collection_command(command, "deck")
         if command.lower().startswith("relic "):
             return self._handle_collection_command(command, "relic")
+        if command.lower().startswith("potion "):
+            return self._handle_collection_command(command, "potion")
+        if command.lower().startswith("gold "):
+            return self._handle_resource_command(command, "gold")
+        if command.lower().startswith("hp "):
+            return self._handle_resource_command(command, "hp")
         return False
-
-    def handle_debug_command(self, command: str) -> bool:
-        if not self.debug:
-            ansiprint("<red>Debug mode is required for 'give'. Run with --debug.</red>")
-            return True
-        parts = command.split(maxsplit=2)
-        if parts[0].lower() != "give":
-            return False
-        if len(parts) < 3:
-            ansiprint("<red>Usage: give <card|relic|hp|gold> <value></red>")
-            return True
-
-        resource_type = parts[1].lower()
-        resource_value = parts[2].strip()
-        if resource_type == "card":
-            self._give_card(resource_value)
-        elif resource_type == "relic":
-            self._give_relic(resource_value)
-        elif resource_type == "hp":
-            self._give_hp(resource_value)
-        elif resource_type == "gold":
-            self._give_gold(resource_value)
-        else:
-            ansiprint("<red>Unknown debug resource. Use: card, relic, hp, or gold.</red>")
-        return True
 
     def _handle_collection_command(self, command: str, collection: str) -> bool:
         parts = command.split(maxsplit=2)
@@ -102,8 +93,10 @@ class Game:
         if action == "show":
             if collection == "deck":
                 self._show_deck()
-            else:
+            elif collection == "relic":
                 self._show_relics()
+            else:
+                self._show_potions()
             return True
         if not self.debug:
             ansiprint(f"<red>Debug mode is required for '{collection} {action}'. Run with --debug.</red>")
@@ -112,9 +105,12 @@ class Game:
             if collection == "deck":
                 self.player.deck.clear()
                 ansiprint("<green>Debug:</green> Cleared deck.")
-            else:
+            elif collection == "relic":
                 self._clear_relics()
                 ansiprint("<green>Debug:</green> Cleared relics.")
+            else:
+                self.player.potions.clear()
+                ansiprint("<green>Debug:</green> Cleared potions.")
             return True
         if action not in ("set", "add"):
             ansiprint(f"<red>Usage: {collection} <show|clear|set|add> ...</red>")
@@ -135,7 +131,7 @@ class Game:
             else:
                 self.player.deck.extend(cards)
                 ansiprint(f"<green>Debug:</green> Added {len(cards)} cards (deck: {len(self.player.deck)}).")
-        else:
+        elif collection == "relic":
             relics = self._build_relics_from_specs(specs)
             if relics is None:
                 return True
@@ -148,9 +144,46 @@ class Game:
                     ansiprint(f"<red>Skipping duplicate relic <yellow>{relic.name}</yellow>.</red>")
                     continue
                 self.player.relics.append(relic)
+                # Register before publishing so relics can react to their own pickup event.
+                if not relic.subscribed:
+                    relic.register(self.bus)
                 self.bus.publish(Message.ON_RELIC_ADD, (relic, self.player))
                 added += 1
             ansiprint(f"<green>Debug:</green> Added {added} relic(s) (total: {len(self.player.relics)}).")
+        else:
+            potions = self._build_potions_from_specs(specs)
+            if potions is None:
+                return True
+            if action == "set":
+                self.player.potions = []
+            self.player.potions.extend(potions)
+            ansiprint(f"<green>Debug:</green> Added {len(potions)} potion(s) (total: {len(self.player.potions)}).")
+        return True
+
+    def _handle_resource_command(self, command: str, resource: str) -> bool:
+        parts = command.split(maxsplit=2)
+        if len(parts) < 2:
+            return False
+        action = parts[1].lower()
+        if action == "show":
+            if resource == "gold":
+                ansiprint(f"<yellow>Gold:</yellow> {self.player.gold}")
+            else:
+                ansiprint(f"<light-blue>HP:</light-blue> {self.player.health}/{self.player.max_health}")
+            return True
+        if action not in ("add", "set"):
+            ansiprint(f"<red>Usage: {resource} <show|add|set> <amount></red>")
+            return True
+        if not self.debug:
+            ansiprint(f"<red>Debug mode is required for '{resource} {action}'. Run with --debug.</red>")
+            return True
+        if len(parts) < 3:
+            ansiprint(f"<red>Usage: {resource} <show|add|set> <amount></red>")
+            return True
+        if resource == "gold":
+            self._modify_gold(parts[2], action)
+        else:
+            self._modify_hp(parts[2], action)
         return True
 
     @staticmethod
@@ -193,6 +226,15 @@ class Game:
         for name, count in sorted(counts.items()):
             ansiprint(f" - {count}x {name}")
 
+    def _show_potions(self):
+        if not self.player.potions:
+            ansiprint("Potions: none")
+            return
+        counts = Counter(potion.name for potion in self.player.potions)
+        ansiprint(f"<bold>Potions</bold> ({len(self.player.potions)}):")
+        for name, count in sorted(counts.items()):
+            ansiprint(f" - {count}x {name}")
+
     def _build_cards_from_specs(self, specs: list[tuple[int, str]]) -> list:
         card_lookup = {
             self._normalize_name(card.name): type(card)
@@ -224,33 +266,26 @@ class Game:
             relics.append(relic_lookup[normalized]())
         return relics
 
+    def _build_potions_from_specs(self, specs: list[tuple[int, str]]) -> list:
+        potion_lookup = {
+            self._normalize_name(potion.name): type(potion)
+            for potion in potion_catalog.create_all_potions()
+        }
+        potions = []
+        for count, name in specs:
+            normalized = self._normalize_name(name)
+            if normalized not in potion_lookup:
+                ansiprint(f"<red>Could not find potion '{name}'.</red>")
+                return None
+            potions.extend(potion_lookup[normalized]() for _ in range(count))
+        return potions
+
     def _clear_relics(self):
         for relic in self.player.relics:
             if relic.subscribed:
                 relic.unsubscribe()
 
-    def _give_card(self, card_name: str):
-        cards = self._build_cards_from_specs([(1, card_name)])
-        if cards is None:
-            return
-        card = cards[0]
-        self.player.deck.append(card)
-        self.bus.publish(Message.ON_CARD_ADD, (self.player, card))
-        ansiprint(f"<green>Debug:</green> Added card <yellow>{card.name}</yellow> to deck.")
-
-    def _give_relic(self, relic_name: str):
-        relics = self._build_relics_from_specs([(1, relic_name)])
-        if relics is None:
-            return
-        relic = relics[0]
-        if any(existing.name == relic.name for existing in self.player.relics):
-            ansiprint(f"<red>You already have <yellow>{relic.name}</yellow>.</red>")
-            return
-        self.player.relics.append(relic)
-        self.bus.publish(Message.ON_RELIC_ADD, (relic, self.player))
-        ansiprint(f"<green>Debug:</green> Added relic <yellow>{relic.name}</yellow>.")
-
-    def _give_hp(self, hp: str):
+    def _modify_hp(self, hp: str, mode: str):
         try:
             hp_amount = int(hp)
         except ValueError:
@@ -259,20 +294,30 @@ class Game:
         if hp_amount <= 0:
             ansiprint("<red>HP amount must be positive.</red>")
             return
-        self.player.health_actions(hp_amount, "Heal")
-        ansiprint(f"<green>Debug:</green> Healed <light-blue>{hp_amount}</light-blue> HP.")
+        if mode == "add":
+            self.player.health_actions(hp_amount, "Heal")
+            ansiprint(f"<green>Debug:</green> Healed <light-blue>{hp_amount}</light-blue> HP.")
+            return
+        self.player.health = min(hp_amount, self.player.max_health)
+        if self.player.health <= 0:
+            self.player.state = State.DEAD
+        ansiprint(f"<green>Debug:</green> HP set to <light-blue>{self.player.health}</light-blue>/<light-blue>{self.player.max_health}</light-blue>.")
 
-    def _give_gold(self, gold: str):
+    def _modify_gold(self, gold: str, mode: str):
         try:
             gold_amount = int(gold)
         except ValueError:
             ansiprint("<red>Gold amount must be an integer.</red>")
             return
-        if gold_amount <= 0:
-            ansiprint("<red>Gold amount must be positive.</red>")
+        if mode == "add":
+            if gold_amount <= 0:
+                ansiprint("<red>Gold amount must be positive.</red>")
+                return
+            self.player.gain_gold(gold_amount, dialogue=False)
+            ansiprint(f"<green>Debug:</green> Added <yellow>{gold_amount} Gold</yellow>.")
             return
-        self.player.gain_gold(gold_amount, dialogue=False)
-        ansiprint(f"<green>Debug:</green> Added <yellow>{gold_amount} Gold</yellow>.")
+        self.player.gold = max(0, gold_amount)
+        ansiprint(f"<green>Debug:</green> Gold set to <yellow>{self.player.gold}</yellow>.")
 
     def play(self, encounter: game_map.Encounter, the_map: game_map.GameMap):
         if encounter.type == EncounterType.START:

@@ -106,7 +106,9 @@ class BottledFlame(Relic):
 
     def callback(self, message, data):
         if message == Message.ON_RELIC_ADD:
-            player, _ = data
+            picked_relic, player = data
+            if picked_relic is not self:
+                return
             if any(card.type == CardType.ATTACK for card in player.deck):
                 chosen_card = view.list_input("Choose an <keyword>Attack</keyword> to bottle", player.deck, view.view_piles, lambda card: card.type == CardType.ATTACK, "That card is not an <keyword>Attack</keyword>.")
                 if chosen_card is not None:
@@ -119,7 +121,9 @@ class BottledLighting(Relic):
 
     def callback(self, message, data):
         if message == Message.ON_RELIC_ADD:
-            player, _ = data
+            picked_relic, player = data
+            if picked_relic is not self:
+                return
             if any(card.type == CardType.SKILL for card in player.deck):
                 chosen_card = view.list_input("Choose a <keyword>Skill</keyword> to bottle", player.deck, view.view_piles, lambda card: card.type == CardType.SKILL, "That card is not a <keyword>Skill</keyword>.")
                 if chosen_card is not None:
@@ -132,7 +136,9 @@ class BottledTornado(Relic):
 
     def callback(self, message, data):
         if message == Message.ON_RELIC_ADD:
-            player, _ = data
+            picked_relic, player = data
+            if picked_relic is not self:
+                return
             if any(card.type == CardType.POWER for card in player.deck):
                 chosen_card = view.list_input("Choose a <keyword>Power</keyword> to bottle", player.deck, view.view_piles, lambda card: card.type == CardType.POWER, "That card is not a <keyword>Power</keyword>.")
                 if chosen_card is not None:

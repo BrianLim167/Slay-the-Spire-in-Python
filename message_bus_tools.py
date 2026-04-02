@@ -145,7 +145,7 @@ class Relic(Registerable):
         else:
             original = False
         by_string = isinstance(other, str) and other == self.name
-        by_class = other == type(self) and other.__name__ == self.__class__.__name__
+        by_class = isinstance(other, type) and issubclass(other, type(self))
         return original or by_string or by_class
 
     def pretty_print(self):

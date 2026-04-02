@@ -124,7 +124,7 @@ def test_e2e(seed, monkeypatch, sleepless):
             ansiprint(f"\n\n<green><bold>Game took {end - start:.2f} seconds</bold></green>")
 
 
-def test_debug_give_commands(sleepless):
+def test_debug_resource_commands(sleepless):
     mygame = game.Game(seed=0, debug=True)
 
     starting_gold = mygame.player.gold
@@ -132,23 +132,29 @@ def test_debug_give_commands(sleepless):
     starting_relics = len(mygame.player.relics)
     starting_health = mygame.player.health
 
-    assert mygame.handle_debug_command("give gold 25")
+    assert mygame.handle_command("gold add 25")
     assert mygame.player.gold == starting_gold + 25
 
-    assert mygame.handle_debug_command("give card anger")
+    assert mygame.handle_command("deck add anger")
     assert len(mygame.player.deck) == starting_deck + 1
     assert any(card.name == "Anger" for card in mygame.player.deck)
 
     mygame.player.health = max(1, mygame.player.health - 10)
-    assert mygame.handle_debug_command("give hp 5")
+    assert mygame.handle_command("hp add 5")
     assert mygame.player.health == min(mygame.player.max_health, starting_health - 5)
 
-    assert mygame.handle_debug_command("give relic anchor")
+    assert mygame.handle_command("relic add anchor")
     assert len(mygame.player.relics) == starting_relics + 1
     assert any(relic.name == "Anchor" for relic in mygame.player.relics)
 
+    assert mygame.handle_command("gold set 777")
+    assert mygame.player.gold == 777
 
-def test_debug_deck_and_relic_commands(sleepless):
+    assert mygame.handle_command("hp set 12")
+    assert mygame.player.health == 12
+
+
+def test_debug_deck_relic_and_potion_commands(sleepless):
     mygame = game.Game(seed=0, debug=True)
 
     assert mygame.handle_command("deck set 2 strike, bash")
@@ -175,9 +181,55 @@ def test_debug_deck_and_relic_commands(sleepless):
     assert mygame.handle_command("relic clear")
     assert len(mygame.player.relics) == 0
 
+    assert mygame.handle_command("potion set blood potion")
+    assert len(mygame.player.potions) == 1
+    assert mygame.player.potions[0].name == "Blood Potion"
+
+    assert mygame.handle_command("potion add 2 attack potion")
+    assert len(mygame.player.potions) == 3
+    assert [potion.name for potion in mygame.player.potions].count("Attack Potion") == 2
+
+    assert mygame.handle_command("potion clear")
+    assert len(mygame.player.potions) == 0
+
 
 def test_show_commands_work_without_debug(sleepless):
     mygame = game.Game(seed=0, debug=False)
     assert mygame.handle_command("deck show")
     assert mygame.handle_command("relic show")
+    assert mygame.handle_command("potion show")
+    assert mygame.handle_command("gold show")
+    assert mygame.handle_command("hp show")
+
+
+def test_bottled_tornado_add_with_no_powers_does_not_prompt(monkeypatch, sleepless):
+    mygame = game.Game(seed=0, debug=True)
+    # Starter Ironclad deck has no Power cards.
+    assert not any(card.type == CardType.POWER for card in mygame.player.deck)
+
+    with monkeypatch.context() as m:
+        m.setattr("displayer.list_input", lambda *args, **kwargs: pytest.fail("Should not prompt when no Power cards exist"))
+        assert mygame.handle_command("relic add bottled tornado")
+
+    assert any(relic.name == "Bottled Tornado" for relic in mygame.player.relics)
+    assert not any(getattr(card, "bottled", False) for card in mygame.player.deck)
+
+
+def test_bottled_tornado_add_bottles_power_card(monkeypatch, sleepless):
+    mygame = game.Game(seed=0, debug=True)
+    mygame.player.deck.append(game.card_catalog.Inflame())
+
+    def pick_first_power(*args, **kwargs):
+        choices = args[1]
+        for idx, card in enumerate(choices):
+            if card.type == CardType.POWER:
+                return idx
+        return None
+
+    with monkeypatch.context() as m:
+        m.setattr("displayer.list_input", pick_first_power)
+        assert mygame.handle_command("relic add bottled tornado")
+
+    assert any(relic.name == "Bottled Tornado" for relic in mygame.player.relics)
+    assert any(card.type == CardType.POWER and getattr(card, "bottled", False) for card in mygame.player.deck)
 
