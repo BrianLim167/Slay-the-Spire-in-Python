@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import random
 from os import name, system
-from time import sleep
 from typing import TYPE_CHECKING, Callable
 
 from ansi_tags import ansiprint, strip
 from definitions import (
     State,
 )
+from pacing import sleep
 
 if TYPE_CHECKING:
     from card_catalog import Card

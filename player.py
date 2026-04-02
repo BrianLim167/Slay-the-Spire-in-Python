@@ -2,7 +2,6 @@ import math
 import random
 import sys
 from copy import deepcopy
-from time import sleep
 from uuid import uuid4
 
 import effect_catalog
@@ -17,6 +16,7 @@ import card_catalog
 import potion_catalog
 import relic_catalog
 from functools import partial
+from pacing import sleep
 
 import displayer as view
 import effect_interface as ei
@@ -176,7 +176,6 @@ class Player(Registerable):
             else:
                 self.move_card(card=card, move_to=self.discard_pile, from_location=None, cost_energy=True)
         sleep(0.5)
-        view.clear()
 
     def draw_cards(self, cards: int | None = None, clear_hand: bool = False):
         """Draws [cards] cards."""

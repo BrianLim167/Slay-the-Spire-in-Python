@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from time import sleep
 from typing import TYPE_CHECKING
 
 import displayer as view
@@ -13,6 +12,7 @@ from definitions import (
     Rarity,
 )
 from message_bus_tools import Message, bus
+from pacing import sleep
 
 # Generators module
 # Generates relic_pool, potions, and cards

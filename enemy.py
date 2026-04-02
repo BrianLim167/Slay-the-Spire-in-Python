@@ -1,7 +1,6 @@
 import math
 import random
 from copy import deepcopy
-from time import sleep
 from uuid import uuid4
 
 import displayer as view
@@ -10,6 +9,7 @@ from ansi_tags import ansiprint
 from definitions import State
 from entities import Damage
 from message_bus_tools import Message, Registerable, bus
+from pacing import sleep
 from card_catalog import Card
 from player import Player
 from effect_catalog import Effect

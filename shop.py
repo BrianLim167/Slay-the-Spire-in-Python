@@ -24,7 +24,6 @@
 # Woo.... lots of stuff to do here.
 
 import random
-from time import sleep
 
 import displayer
 from ansi_tags import ansiprint
@@ -35,6 +34,7 @@ from potion_catalog import create_all_potions
 from relic_catalog import create_all_relics
 from message_bus_tools import Potion, Relic
 from card_catalog import Card
+from pacing import sleep
 
 
 # Helper functions for displaying cards, potions, and relics.

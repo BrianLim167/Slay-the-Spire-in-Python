@@ -1,5 +1,4 @@
 import random
-from time import sleep
 
 import card_catalog
 import displayer as view
@@ -17,6 +16,7 @@ from enemy_catalog import (
 )
 from message_bus_tools import Message, bus
 from player import Player
+from pacing import sleep
 
 
 class Combat:
@@ -49,7 +49,7 @@ class Combat:
             print(f"Turn {self.turn}: ")
             # Shows the player's potions, cards(in hand), amount of cards in discard and draw pile, and shows the status for you and the enemies.
             view.display_ui(self.player, self.active_enemies)
-            print("1-0: Play card, P: Play Potion, M: View Map, D: View Deck, A: View Draw Pile, S: View Discard Pile, X: View Exhaust Pile, E: End Turn, F: View Debuffs and Buffs")
+            print("1-0: Play card, P: Play Potion, M: View Map, D: View Deck, A: View Draw Pile, S: View Discard Pile, X: View Exhaust Pile, E: End Turn, F: View Debuffs and Buffs, L: Look at Combat")
             action = input("> ").lower()
             other_options = {
                 "d": lambda: view.view_piles(self.player.deck, end=True),
@@ -61,24 +61,20 @@ class Combat:
                 "p": self.play_potion,
                 "f": lambda: ei.full_view(self.player, self.active_enemies),
                 "m": lambda: view.view_map(self.game_map),
+                "l": lambda: view.display_ui(self.player, self.active_enemies),
             }
             if action.isdigit():
                 option = int(action) - 1
                 if option + 1 in range(len(self.player.hand) + 1):
                     self.play_new_card(self.player.hand[option])
                 else:
-                    view.clear()
                     continue
             elif action in other_options:
                 other_options[action]()
             elif action == "e":
-                view.clear()
                 break
             else:
-                view.clear()
                 continue
-            sleep(1)
-            view.clear()
         return killed, escaped, robbed
 
     def combat(self) -> None:
@@ -184,13 +180,11 @@ class Combat:
         if card.energy_cost > self.player.energy:
             ansiprint("<red>You don't have enough energy to use this card.</red>")
             sleep(1)
-            view.clear()
             return
         # Todo: Move to Velvet Choker relic
         if self.player.choker_cards_played == 6:
             ansiprint("You have already played 6 cards this turn!")
             sleep(1)
-            view.clear()
             return
 
         if card.target == TargetType.SINGLE:

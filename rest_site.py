@@ -1,5 +1,4 @@
 import math
-from time import sleep
 
 import card_catalog
 import displayer as view
@@ -9,6 +8,7 @@ import relic_catalog
 from ansi_tags import ansiprint
 from definitions import CardType
 from message_bus_tools import Message, bus
+from pacing import sleep
 
 
 class RestSite():

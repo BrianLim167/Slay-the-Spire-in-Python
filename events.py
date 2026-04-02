@@ -1,7 +1,6 @@
 import inspect
 import math
 import random
-from time import sleep
 from typing import Callable
 
 import card_catalog
@@ -12,6 +11,7 @@ import potion_catalog
 import relic_catalog
 from ansi_tags import ansiprint
 from definitions import CardType, CombatTier, PlayerClass
+from pacing import sleep
 from player import Player
 
 
