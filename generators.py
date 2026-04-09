@@ -177,13 +177,13 @@ def card_rewards(tier: str, choice: bool, entity, card_pool: dict, rewards=None)
             )):
                 rewards[chosen_reward].upgrade()
             entity.deck.append(rewards[chosen_reward])
-            ansiprint(f"{entity.name} obtained <bold>{rewards[chosen_reward].name}</bold>")
+            ansiprint(f"{entity.name} obtained <bold>{rewards[chosen_reward].display_name}</bold>")
             rewards.clear()
             break
         for card in rewards:
             bus.publish(Message.ON_CARD_ADD, (entity, card))
             entity.deck.append(card)
-            print(f"{entity.name} obtained {card.name}")
+            print(f"{entity.name} obtained {card.display_name}")
             rewards.remove(card)
         break
     rewards.clear()

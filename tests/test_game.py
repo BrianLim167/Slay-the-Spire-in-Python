@@ -167,6 +167,12 @@ def test_debug_deck_relic_and_potion_commands(sleepless):
     assert [card.name for card in mygame.player.deck].count("Anger") == 1
     assert [card.name for card in mygame.player.deck].count("Defend") == 2
 
+    assert mygame.handle_command("deck add 2 bash+")
+    upgraded_bashes = [card for card in mygame.player.deck if card.name == "Bash" and card.upgraded]
+    assert len(upgraded_bashes) == 2
+    assert all(card.damage == 10 for card in upgraded_bashes)
+    assert all(card.vulnerable == 3 for card in upgraded_bashes)
+
     assert mygame.handle_command("deck clear")
     assert len(mygame.player.deck) == 0
 
@@ -200,6 +206,19 @@ def test_show_commands_work_without_debug(sleepless):
     assert mygame.handle_command("potion show")
     assert mygame.handle_command("gold show")
     assert mygame.handle_command("hp show")
+
+
+def test_upgraded_cards_show_plus_suffix(monkeypatch, sleepless):
+    mygame = game.Game(seed=0, debug=True)
+    assert mygame.handle_command("deck set bash+")
+
+    output = []
+    with monkeypatch.context() as m:
+        m.setattr(game, "ansiprint", lambda *args, **kwargs: output.append(args[0]))
+        assert mygame.handle_command("deck show")
+
+    assert any("Bash+" in line for line in output)
+    assert any("Bash+" in card.pretty_print() for card in mygame.player.deck)
 
 
 def test_bottled_tornado_add_with_no_powers_does_not_prompt(monkeypatch, sleepless):

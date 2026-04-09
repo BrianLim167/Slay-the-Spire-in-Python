@@ -191,6 +191,26 @@ class Game:
     def _normalize_name(name: str) -> str:
         return "".join(char for char in name.lower() if char.isalnum())
 
+    @staticmethod
+    def _parse_card_name(name: str) -> tuple[str, int] | None:
+        cleaned_name = name.strip()
+        numbered_upgrade_match = re.match(r"^(.*)\+(\d+)$", cleaned_name)
+        repeated_upgrade_match = re.match(r"^(.*?)(\++)$", cleaned_name)
+
+        if numbered_upgrade_match is not None:
+            base_name = numbered_upgrade_match.group(1).strip()
+            upgrades = int(numbered_upgrade_match.group(2))
+        elif repeated_upgrade_match is not None:
+            base_name = repeated_upgrade_match.group(1).strip()
+            upgrades = len(repeated_upgrade_match.group(2))
+        else:
+            base_name = cleaned_name
+            upgrades = 0
+
+        if not base_name:
+            return None
+        return base_name, upgrades
+
     def _parse_specs(self, specs: str) -> list[tuple[int, str]] | None:
         parsed_specs = []
         for raw_spec in [item.strip() for item in specs.split(",") if item.strip()]:
@@ -213,7 +233,7 @@ class Game:
         if not self.player.deck:
             ansiprint("Deck is empty.")
             return
-        counts = Counter(card.name for card in self.player.deck)
+        counts = Counter(card.display_name for card in self.player.deck)
         ansiprint(f"<bold>Deck</bold> ({len(self.player.deck)} cards):")
         for name, count in sorted(counts.items()):
             ansiprint(f" - {count}x {name}")
@@ -243,11 +263,23 @@ class Game:
         }
         cards = []
         for count, name in specs:
-            normalized = self._normalize_name(name)
+            parsed_name = self._parse_card_name(name)
+            if parsed_name is None:
+                ansiprint(f"<red>Could not parse card '{name}'.</red>")
+                return None
+            base_name, upgrades = parsed_name
+            normalized = self._normalize_name(base_name)
             if normalized not in card_lookup:
                 ansiprint(f"<red>Could not find card '{name}'.</red>")
                 return None
-            cards.extend(card_lookup[normalized]() for _ in range(count))
+            for _ in range(count):
+                card = card_lookup[normalized]()
+                for _ in range(upgrades):
+                    if not card.is_upgradeable():
+                        ansiprint(f"<red>Card '{base_name}' cannot be upgraded {upgrades} time(s).</red>")
+                        return None
+                    card.upgrade()
+                cards.append(card)
         return cards
 
     def _build_relics_from_specs(self, specs: list[tuple[int, str]]) -> list:

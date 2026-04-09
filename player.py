@@ -171,7 +171,7 @@ class Player(Registerable):
         # Move the card to the appropriate pile
         if pile is not None:
             if exhaust is True or getattr(card, "exhaust", False) is True:
-                ansiprint(f"{card.name} was <bold>Exhausted</bold>.")
+                ansiprint(f"{card.display_name} was <bold>Exhausted</bold>.")
                 self.move_card(card=card, move_to=self.exhaust_pile, from_location=None, cost_energy=True)
             else:
                 self.move_card(card=card, move_to=self.discard_pile, from_location=None, cost_energy=True)
@@ -266,7 +266,7 @@ class Player(Registerable):
         elif card in from_location:
             from_location.remove(card)
         else:
-            ansiprint(f"WARNING: {card.name} was not found in `from_location` in `move_card()` function.")
+            ansiprint(f"WARNING: {card.display_name} was not found in `from_location` in `move_card()` function.")
         if shuffle is True:
             move_to.insert(random.randint(0, len(move_to) - 1), card)
         else:

@@ -35,6 +35,10 @@ class Card(Registerable):
         self.upgrade_preview = f"{self.name} -> <green>{self.name + '+'}</green> | "
         self.playable = card_type not in (CardType.STATUS, CardType.CURSE)
 
+    @property
+    def display_name(self) -> str:
+        return f"{self.name}+" if self.upgraded else self.name
+
     def upgrade(self):
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -43,7 +47,7 @@ class Card(Registerable):
 
     def pretty_print(self):
         type_color = self.type.lower()
-        return f"""<{self.rarity.lower()}>{self.name}</{self.rarity.lower()}> | <{type_color}>{self.type}</{type_color}>{f' | <light-red>{"<green>" if self.base_energy_cost != self.energy_cost else ""}{self.energy_cost}{"</green>" if self.base_energy_cost != self.energy_cost else ""} Energy</light-red>' if self.energy_cost > -1 else ''} | <yellow>{self.info}</yellow>"""
+        return f"""<{self.rarity.lower()}>{self.display_name}</{self.rarity.lower()}> | <{type_color}>{self.type}</{type_color}>{f' | <light-red>{"<green>" if self.base_energy_cost != self.energy_cost else ""}{self.energy_cost}{"</green>" if self.base_energy_cost != self.energy_cost else ""} Energy</light-red>' if self.energy_cost > -1 else ''} | <yellow>{self.info}</yellow>"""
 
     def upgrade_markers(self):
         self.info += '<green>+</green>'
