@@ -8,8 +8,10 @@ import pytest
 import definitions
 import displayer
 import game
+from combat import Combat
 from ansi_tags import ansiprint
 from definitions import CardType
+from enemy_catalog import AcidSlimeS, SpikeSlimeS
 from tests.fixtures import sleepless
 import effect_interface
 
@@ -251,4 +253,22 @@ def test_bottled_tornado_add_bottles_power_card(monkeypatch, sleepless):
 
     assert any(relic.name == "Bottled Tornado" for relic in mygame.player.relics)
     assert any(card.type == CardType.POWER and getattr(card, "bottled", False) for card in mygame.player.deck)
+
+
+def test_debug_kill_command_targets_enemy_and_all(sleepless):
+    mygame = game.Game(seed=0, debug=True)
+    encounter = Combat(
+        tier=definitions.CombatTier.NORMAL,
+        player=mygame.player,
+        game_map=mygame.game_map,
+        all_enemies=[AcidSlimeS(), SpikeSlimeS()],
+    )
+    mygame.current_encounter = encounter
+
+    assert mygame.handle_command("kill 1")
+    assert encounter.all_enemies[0].state == definitions.State.DEAD
+    assert encounter.all_enemies[1].state == definitions.State.ALIVE
+
+    assert mygame.handle_command("kill all")
+    assert all(enemy.state == definitions.State.DEAD for enemy in encounter.all_enemies)
 

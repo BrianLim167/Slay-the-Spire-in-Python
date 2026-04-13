@@ -181,7 +181,15 @@ def card_rewards(tier: str, choice: bool, entity, card_pool: dict, rewards=None)
         return
     while True:
         if choice:
-            chosen_reward = view.list_input("Choose a card", rewards, view.view_piles)
+            chosen_reward = view.list_input(
+                "Choose a card (or type 's'/'skip' to skip)",
+                rewards,
+                view.view_piles,
+                extra_allowables=["s", "skip"],
+            )
+            if chosen_reward in ("s", "skip"):
+                ansiprint("<yellow>Skipped card reward.</yellow>")
+                break
             if chosen_reward is None:
                 break
             if (

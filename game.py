@@ -83,6 +83,8 @@ class Game:
             return self._handle_resource_command(command, "gold")
         if command.lower().startswith("hp "):
             return self._handle_resource_command(command, "hp")
+        if command.lower().startswith("kill "):
+            return self._handle_kill_command(command)
         return False
 
     def _handle_collection_command(self, command: str, collection: str) -> bool:
@@ -185,6 +187,45 @@ class Game:
             self._modify_gold(parts[2], action)
         else:
             self._modify_hp(parts[2], action)
+        return True
+
+    def _handle_kill_command(self, command: str) -> bool:
+        parts = command.split(maxsplit=1)
+        if len(parts) < 2:
+            ansiprint("<red>Usage: kill <enemy_number|all></red>")
+            return True
+        if not self.debug:
+            ansiprint("<red>Debug mode is required for 'kill'. Run with --debug.</red>")
+            return True
+        if not self.current_encounter:
+            ansiprint("<red>No active combat encounter.</red>")
+            return True
+
+        target = parts[1].strip().lower()
+        active_enemies = self.current_encounter.active_enemies
+        if len(active_enemies) == 0:
+            ansiprint("<yellow>No active enemies.</yellow>")
+            return True
+
+        if target == "all":
+            for enemy in active_enemies:
+                enemy.die()
+            ansiprint(f"<green>Debug:</green> Killed {len(active_enemies)} enemy(ies).")
+            return True
+
+        try:
+            target_idx = int(target) - 1
+        except ValueError:
+            ansiprint("<red>Usage: kill <enemy_number|all></red>")
+            return True
+
+        if target_idx not in range(len(active_enemies)):
+            ansiprint(f"<red>Invalid enemy number. Choose 1-{len(active_enemies)} or 'all'.</red>")
+            return True
+
+        target_enemy = active_enemies[target_idx]
+        target_enemy.die()
+        ansiprint(f"<green>Debug:</green> Killed {target_enemy.name}.")
         return True
 
     @staticmethod
