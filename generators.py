@@ -31,20 +31,28 @@ def generate_card_rewards(reward_tier: CombatTier, amount: int, entity: object, 
     common_cards = [card for card in card_pool if card.rarity == Rarity.COMMON and card.type not in (CardType.STATUS, CardType.CURSE) and card.player_class == entity.player_class]
     uncommon_cards = [card for card in card_pool if card.rarity == Rarity.UNCOMMON and card.type not in (CardType.STATUS, CardType.CURSE) and card.player_class == entity.player_class]
     rare_cards = [card for card in card_pool if card.rarity == Rarity.RARE and card.type not in (CardType.STATUS, CardType.CURSE) and card.player_class == entity.player_class]
-    assert len(common_cards) > 0, "Common pool is empty."
-    assert len(uncommon_cards) > 0, "Uncommon pool is empty."
-    assert len(rare_cards) > 0, "Rare pool is empty."
-
-    rarities = [common_cards, uncommon_cards, rare_cards]
-    rewards = []
     if reward_tier == CombatTier.NORMAL:
         chances = [0.60, 0.37, 0.03]
     elif reward_tier == CombatTier.ELITE:
         chances = [0.5, 0.4, 0.1]
     elif reward_tier == CombatTier.BOSS:
         chances = [0, 0, 1]
+    else:
+        chances = [0.60, 0.37, 0.03]
+
+    rarity_data = list(zip([common_cards, uncommon_cards, rare_cards], chances))
+    available_rarities = [(pool, chance) for pool, chance in rarity_data if len(pool) > 0]
+    if len(available_rarities) == 0:
+        return []
+
+    rarity_pools = [pool for pool, _ in available_rarities]
+    rarity_weights = [weight for _, weight in available_rarities]
+    if sum(rarity_weights) == 0:
+        rarity_weights = [1] * len(rarity_pools)
+
+    rewards = []
     for _ in range(amount):
-        chosen_pool = random.choices(rarities, chances, k=1)[0]
+        chosen_pool = random.choices(rarity_pools, rarity_weights, k=1)[0]
         rewards.append(random.choice(chosen_pool))
     return rewards
 
@@ -167,9 +175,15 @@ def claim_potions(choice: bool, potion_amount: int, entity, potion_pool: dict, r
 def card_rewards(tier: str, choice: bool, entity, card_pool: dict, rewards=None):
     if not rewards:
         rewards = generate_card_rewards(tier, entity.card_reward_choices, entity, card_pool)
+    if len(rewards) == 0:
+        ansiprint("<yellow>No card rewards available.</yellow>")
+        sleep(1)
+        return
     while True:
         if choice:
             chosen_reward = view.list_input("Choose a card", rewards, view.view_piles)
+            if chosen_reward is None:
+                break
             if (
                 entity.upgrade_attacks and rewards[chosen_reward].type == CardType.ATTACK
                 or (entity.upgrade_skills and rewards[chosen_reward].type == CardType.SKILL

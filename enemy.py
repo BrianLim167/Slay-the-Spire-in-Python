@@ -62,8 +62,48 @@ class Enemy(Registerable):
             status += " | " + effect.get_name()
         if self.flames > 0:
             status += f" | <yellow>{self.flames} Flames</yellow>"
-        status += " | Intent: " + self.intent.replace('Σ', '')
+        status += " | Intent: " + self._get_display_intent()
         return status
+
+    def _project_attack_damage(self, base_damage: int) -> int:
+        """Returns the damage shown in intent after active modifiers."""
+        if self.player is None:
+            return base_damage
+        projected_damage = Damage(base_damage)
+        bus.publish(Message.BEFORE_ATTACK, (self, self.player, projected_damage))
+        return projected_damage.damage
+
+    def _get_display_intent(self) -> str:
+        """Builds intent text from next_move so shown values stay in sync."""
+        if not self.next_move:
+            return self.intent.replace('Σ', '')
+
+        intent_parts = []
+        for idx, move in enumerate(self.next_move):
+            if idx == 0 and len(move) > 2:
+                _, action_type, parameters = move
+            else:
+                action_type, parameters = move
+
+            if action_type == "Attack":
+                base_damage = parameters[0]
+                attack_times = parameters[1] if len(parameters) > 1 else 1
+                damage_text = str(self._project_attack_damage(base_damage))
+                if attack_times > 1:
+                    damage_text += f"x{attack_times}"
+                intent_parts.append(f"<aggresive>Attack</aggresive> {damage_text}")
+            elif action_type == "Buff":
+                intent_parts.append("<buff>Buff</buff>")
+            elif action_type in ("Debuff", "Status"):
+                intent_parts.append("<debuff>Debuff</debuff>")
+            elif action_type == "Block":
+                intent_parts.append("<light-blue>Block</light-blue>")
+            elif action_type == "Escape":
+                intent_parts.append("<red>Escape</red>")
+            else:
+                return self.intent.replace('Σ', '')
+
+        return " / ".join(intent_parts) if intent_parts else self.intent.replace('Σ', '')
 
     def set_intent(self):
         pass
