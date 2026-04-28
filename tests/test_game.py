@@ -109,7 +109,7 @@ def test_e2e(seed, monkeypatch, sleepless):
     Seems to find lots of bugs, but very hard to repeat.
     '''
     ansiprint(f"<red><bold>Seed for this run is: {seed}</bold></red>")
-    mygame = game.Game(seed=seed)
+    mygame = game.Game(seed=seed, player_class="Ironclad")
     effect_interface.apply_effect(mygame.player, None, "Invulnerable", 1)   # IDDQD
     with monkeypatch.context() as m:
         m.setattr('builtins.input', autoplayer(mygame))
@@ -127,7 +127,7 @@ def test_e2e(seed, monkeypatch, sleepless):
 
 
 def test_debug_resource_commands(sleepless):
-    mygame = game.Game(seed=0, debug=True)
+    mygame = game.Game(seed=0, debug=True, player_class="Ironclad")
 
     starting_gold = mygame.player.gold
     starting_deck = len(mygame.player.deck)
@@ -157,7 +157,7 @@ def test_debug_resource_commands(sleepless):
 
 
 def test_debug_deck_relic_and_potion_commands(sleepless):
-    mygame = game.Game(seed=0, debug=True)
+    mygame = game.Game(seed=0, debug=True, player_class="Ironclad")
 
     assert mygame.handle_command("deck set 2 strike, bash")
     assert len(mygame.player.deck) == 3
@@ -202,7 +202,7 @@ def test_debug_deck_relic_and_potion_commands(sleepless):
 
 
 def test_show_commands_work_without_debug(sleepless):
-    mygame = game.Game(seed=0, debug=False)
+    mygame = game.Game(seed=0, debug=False, player_class="Ironclad")
     assert mygame.handle_command("deck show")
     assert mygame.handle_command("relic show")
     assert mygame.handle_command("potion show")
@@ -211,7 +211,7 @@ def test_show_commands_work_without_debug(sleepless):
 
 
 def test_upgraded_cards_show_plus_suffix(monkeypatch, sleepless):
-    mygame = game.Game(seed=0, debug=True)
+    mygame = game.Game(seed=0, debug=True, player_class="Ironclad")
     assert mygame.handle_command("deck set bash+")
 
     output = []
@@ -224,7 +224,7 @@ def test_upgraded_cards_show_plus_suffix(monkeypatch, sleepless):
 
 
 def test_bottled_tornado_add_with_no_powers_does_not_prompt(monkeypatch, sleepless):
-    mygame = game.Game(seed=0, debug=True)
+    mygame = game.Game(seed=0, debug=True, player_class="Ironclad")
     # Starter Ironclad deck has no Power cards.
     assert not any(card.type == CardType.POWER for card in mygame.player.deck)
 
@@ -237,7 +237,7 @@ def test_bottled_tornado_add_with_no_powers_does_not_prompt(monkeypatch, sleeple
 
 
 def test_bottled_tornado_add_bottles_power_card(monkeypatch, sleepless):
-    mygame = game.Game(seed=0, debug=True)
+    mygame = game.Game(seed=0, debug=True, player_class="Ironclad")
     mygame.player.deck.append(game.card_catalog.Inflame())
 
     def pick_first_power(*args, **kwargs):
@@ -256,7 +256,7 @@ def test_bottled_tornado_add_bottles_power_card(monkeypatch, sleepless):
 
 
 def test_debug_kill_command_targets_enemy_and_all(sleepless):
-    mygame = game.Game(seed=0, debug=True)
+    mygame = game.Game(seed=0, debug=True, player_class="Ironclad")
     encounter = Combat(
         tier=definitions.CombatTier.NORMAL,
         player=mygame.player,

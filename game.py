@@ -19,21 +19,48 @@ from shop import Shop
 
 
 class Game:
-    def __init__(self, seed=None, debug=False):
+    PLAYER_CLASSES = ["Ironclad", "Defect"]
+
+    def __init__(self, seed=None, debug=False, player_class: str | None = None):
         self.bus = bus
         self.bus.reset()
         if seed is not None:
             random.seed(seed)
         self.debug = debug
-        self.player = Player.create_player()
+        self._player_class = player_class
+        if player_class is not None:
+            self.player = Player.create_player(player_class)
+            Enemy.player = self.player
+        else:
+            self.player = None
         self.game_map = game_map.create_first_map()
-        Enemy.player = self.player
         self.current_encounter = None
+
+    def _choose_character(self) -> str:
+        """Prompt the player to choose a character class."""
+        if self._player_class is not None:
+            return self._player_class
+        ansiprint("<bold>Choose your character:</bold>")
+        for idx, name in enumerate(self.PLAYER_CLASSES, 1):
+            ansiprint(f"  {idx}: {name}")
+        while True:
+            try:
+                choice = int(input("Enter your choice > "))
+                if 1 <= choice <= len(self.PLAYER_CLASSES):
+                    return self.PLAYER_CLASSES[choice - 1]
+            except ValueError:
+                pass
+            ansiprint(f"<red>Please enter a number between 1 and {len(self.PLAYER_CLASSES)}.</red>")
 
     def start(self):
         return self._start_with_command_input()
 
     def _start_game(self):
+        if self.player is None:
+            chosen_class = self._choose_character()
+            self.player = Player.create_player(chosen_class)
+            Enemy.player = self.player
+        ansiprint(f"\n<bold>Playing as {self.player.name}!</bold>\n")
         self.game_map.pretty_print()
         for encounter in self.game_map:
             self.play(encounter, self.game_map)

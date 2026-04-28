@@ -12,6 +12,7 @@ from message_bus_tools import Message, Potion, Registerable, Relic, bus
 from card_catalog import Card
 from effect_catalog import Effect
 from entities import Action
+from orbs import Orb
 import card_catalog
 import potion_catalog
 import relic_catalog
@@ -39,14 +40,14 @@ class Player(Registerable):
 
     registers = [Message.END_OF_COMBAT, Message.START_OF_COMBAT, Message.START_OF_TURN, Message.END_OF_TURN, Message.ON_RELIC_ADD]
 
-    def __init__(self, health: int, block: int, max_energy: int, deck: list[Card], powers: list = None):
+    def __init__(self, health: int, block: int, max_energy: int, deck: list[Card], powers: list = None, player_class: str = "Ironclad"):
         self.uid = uuid4()
         if not powers:
             powers = []
         self.health: int = health
         self.block: int = block
-        self.name: str = "Ironclad"
-        self.player_class: str = "Ironclad"
+        self.player_class: str = player_class
+        self.name: str = player_class
         self.in_combat = False
         self.state = State.ALIVE
         self.floors = 1
@@ -105,8 +106,8 @@ class Player(Registerable):
         self.choker_cards_played = 0  # Used for the Velvet Choker relic
 
     @classmethod
-    def create_player(cls):
-        player = cls(health=80, block=0, max_energy=3, deck=[
+    def create_ironclad(cls):
+        player = cls(health=80, block=0, max_energy=3, player_class="Ironclad", deck=[
             card_catalog.IroncladStrike(), card_catalog.IroncladStrike(), card_catalog.IroncladStrike(), card_catalog.IroncladStrike(), card_catalog.IroncladStrike(),
             card_catalog.IroncladDefend(), card_catalog.IroncladDefend(), card_catalog.IroncladDefend(), card_catalog.IroncladDefend(),
             card_catalog.Bash()
@@ -114,8 +115,28 @@ class Player(Registerable):
         player.relics.append(relic_catalog.BurningBlood())
         return player
 
+    @classmethod
+    def create_defect(cls):
+        player = cls(health=75, block=0, max_energy=3, player_class="Defect", deck=[
+            card_catalog.DefectStrike(), card_catalog.DefectStrike(), card_catalog.DefectStrike(), card_catalog.DefectStrike(),
+            card_catalog.DefectDefend(), card_catalog.DefectDefend(), card_catalog.DefectDefend(), card_catalog.DefectDefend(),
+            card_catalog.Zap(),
+        ])
+        return player
+
+    @classmethod
+    def create_player(cls, player_class: str = "Ironclad"):
+        factories = {
+            "Ironclad": cls.create_ironclad,
+            "Defect": cls.create_defect,
+        }
+        factory = factories.get(player_class)
+        if factory is None:
+            raise ValueError(f"Unknown player class: {player_class}. Choose from: {', '.join(factories.keys())}")
+        return factory()
+
     def __str__(self):
-        return f"(<italic>Player</italic>)Ironclad(<red>{self.health} / {self.max_health}</red> | <yellow>{self.gold} Gold</yellow> | Deck: {len(self.deck)})"
+        return f"(<italic>Player</italic>){self.name}(<red>{self.health} / {self.max_health}</red> | <yellow>{self.gold} Gold</yellow> | Deck: {len(self.deck)})"
 
     def __repr__(self):
         if self.in_combat is True:
@@ -170,7 +191,10 @@ class Player(Registerable):
 
         # Move the card to the appropriate pile
         if pile is not None:
-            if exhaust is True or getattr(card, "exhaust", False) is True:
+            if card.type == CardType.POWER:
+                # Power cards are removed from play entirely after use.
+                self.energy -= max(card.energy_cost, 0)
+            elif exhaust is True or getattr(card, "exhaust", False) is True:
                 ansiprint(f"{card.display_name} was <bold>Exhausted</bold>.")
                 self.move_card(card=card, move_to=self.exhaust_pile, from_location=None, cost_energy=True)
             else:
@@ -212,6 +236,32 @@ class Player(Registerable):
         self.block += block
         ansiprint(f"""{self.name} gained {block} <blue>Block</blue> from {block_affected_by}.""") # f-strings my beloved
         bus.publish(Message.AFTER_BLOCK, (self, card))
+
+    @property
+    def focus(self) -> int:
+        """Returns the player's total Focus from buffs."""
+        return effect_catalog.effect_amount(effect_catalog.Focus, self.buffs)
+
+    def channel_orb(self, orb: Orb, enemies: list) -> None:
+        """Channel an orb into the leftmost empty slot. If all slots are full, evoke the leftmost orb first."""
+        if len(self.orbs) >= self.orb_slots:
+            self.evoke_orb(enemies)
+        self.orbs.append(orb)
+        ansiprint(f"<true-blue>Channeled {orb.name}.</true-blue>")
+
+    def evoke_orb(self, enemies: list) -> None:
+        """Evoke (remove) the leftmost orb, trigger its evoke effect, and shift remaining orbs left."""
+        if not self.orbs:
+            ansiprint("<red>No orbs to evoke.</red>")
+            return
+        orb = self.orbs.pop(0)
+        ansiprint(f"<true-blue>Evoked {orb.name}.</true-blue>")
+        orb.evoke(self, enemies)
+
+    def trigger_orb_passives(self, enemies: list) -> None:
+        """Trigger the passive effect of each channeled orb."""
+        for orb in self.orbs:
+            orb.passive(self, enemies)
 
     def health_actions(self, heal: int, heal_type: str):
         """If [heal_type] is 'Heal', you heal for [heal] HP. If [heal_type] is 'Max Health', increase your max health by [heal]."""
@@ -327,6 +377,12 @@ class Player(Registerable):
         if message == Message.START_OF_COMBAT:
             self.in_combat = True
             self.draw_pile = random.sample(self.deck, len(self.deck))
+            # Innate cards are moved to the top of the draw pile so they are drawn first.
+            # _draw_cards takes from the end, so innate cards go to the end.
+            innate = [c for c in self.draw_pile if getattr(c, 'innate', False)]
+            non_innate = [c for c in self.draw_pile if not getattr(c, 'innate', False)]
+            self.draw_pile = non_innate + innate
+            self.orbs.clear()
         elif message == Message.END_OF_COMBAT:
             self.in_combat = False
             self.draw_pile.clear()
@@ -347,6 +403,8 @@ class Player(Registerable):
             ei.tick_effects(self)
             self.fresh_effects.clear()
         elif message == Message.END_OF_TURN:
+            player, enemies = data
+            self.trigger_orb_passives(enemies)
             self.discard_pile += self.hand
             for card in self.hand:
                 card.unsubscribe()

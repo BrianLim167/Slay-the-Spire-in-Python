@@ -69,11 +69,26 @@ def view_map(game_map):
     sleep(0.2)
     input("Press enter to leave > ")
 
+def view_orbs(entity):
+    """Display orb slots for the Defect. Each slot shows the orb or 'Empty'."""
+    if entity.player_class != "Defect":
+        return
+    focus = getattr(entity, 'focus', 0)
+    slots = []
+    for i in range(entity.orb_slots):
+        if i < len(entity.orbs):
+            orb = entity.orbs[i]
+            slots.append(f"[<true-blue>{orb.display(focus)}</true-blue>]")
+        else:
+            slots.append("[<light-black>Empty</light-black>]")
+    ansiprint("<bold>Orbs: </bold>" + " ".join(slots))
+
 def display_ui(entity, enemies, combat=True):
     assert all(x is not None for x in entity.hand)
     # Repeats for every card in the entity's hand
     ansiprint("<bold>Relics: </bold>")
     view_relics(entity.relics)
+    view_orbs(entity)
     ansiprint("<bold>Hand: </bold>")
     view_piles(entity.hand, entity, False, lambda card: (card.energy_cost if card.energy_cost != -1 else entity.energy) <= entity.energy)
     if combat is True:

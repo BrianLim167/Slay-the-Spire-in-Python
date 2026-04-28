@@ -684,6 +684,24 @@ class Stunned(Effect):
             print("TBD: Stunned Effect")
 
 
+class Focus(Effect):
+    """Focus increases the passive and evoke values of all orbs."""
+    registers = []
+
+    def __init__(self, host, amount):
+        super().__init__(
+            host,
+            "Focus",
+            StackType.INTENSITY,
+            EffectType.BUFF,
+            "Increases the effectiveness of orb passive and evoke effects by X.",
+            amount,
+        )
+
+    def callback(self, message, data):
+        pass
+
+
 class Dexterity(Effect):
     # Dexterity is a buff that increases the amount of Block gained from cards.
     registers = [Message.BEFORE_BLOCK]

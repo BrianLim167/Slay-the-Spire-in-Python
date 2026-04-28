@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 import displayer as view
 import effect_interface as ei
+import orbs
 
 
 class Card(Registerable):
@@ -958,6 +959,7 @@ class Brutality(Card):
 
     def upgrade(self):
         self.upgrade_markers()
+        self.innate = True
         self.info = "<keyword>Innate</keyword>. At the start of your turn, lose 1 HP and draw 1 card."
 
     def apply(self, origin):
@@ -995,6 +997,97 @@ class Dazed(Card):
         self.playable = False
 
 
+# ---------- DEFECT CARDS ----------
+
+class DefectStrike(Card):
+    def __init__(self):
+        super().__init__("Strike", "Deal 6 damage.", Rarity.BASIC, PlayerClass.DEFECT, CardType.ATTACK, TargetType.SINGLE, energy_cost=1)
+        self.base_damage = 6
+        self.damage = self.base_damage
+        self.damage_affected_by = [f"Strike({self.damage} dmg)"]
+        self.upgrade_preview += f"<yellow>{self.info}</yellow> -> <yellow>Deal <green>9</green> damage.</yellow>"
+
+    def upgrade(self):
+        self.upgrade_markers()
+        self.base_damage, self.damage = 9, 9
+        self.info = 'Deal 9 damage.'
+
+    def apply(self, origin, target):
+        origin.attack(target, self)
+
+class DefectDefend(Card):
+    def __init__(self):
+        super().__init__("Defend", "Gain 5 <keyword>Block</keyword>.", Rarity.BASIC, PlayerClass.DEFECT, CardType.SKILL, TargetType.YOURSELF, energy_cost=1)
+        self.base_block = 5
+        self.block = self.base_block
+        self.block_affected_by = [f"Defend({self.block} block)"]
+        self.upgrade_preview += f"<yellow>{self.info}</yellow> -> <yellow>Gain <green>8</green> <keyword>Block</keyword>.</yellow>"
+
+    def upgrade(self):
+        self.upgrade_markers()
+        self.base_block, self.block = 8, 8
+        self.info = "Gain 8 <keyword>Block</keyword>."
+
+    def apply(self, origin):
+        origin.blocking(card=self)
+
+class Zap(Card):
+    def __init__(self):
+        super().__init__("Zap", "Channel 1 <keyword>Lightning</keyword>.", Rarity.BASIC, PlayerClass.DEFECT, CardType.SKILL, TargetType.ANY, energy_cost=1)
+        self.upgrade_preview += f"<light-red>{self.energy_cost} Energy</light-red> -> <light-red><green>0</green> Energy</light-red>"
+
+    def upgrade(self):
+        self.upgrade_markers()
+        self.energy_cost = 0
+
+    def apply(self, origin, enemies):
+        origin.channel_orb(orbs.Lightning(), enemies)
+
+class Coolheaded(Card):
+    def __init__(self):
+        super().__init__("Coolheaded", "Channel 1 <keyword>Frost</keyword>. Draw 1 card.", Rarity.COMMON, PlayerClass.DEFECT, CardType.SKILL, TargetType.ANY, energy_cost=1)
+        self.cards = 1
+        self.upgrade_preview += f"<yellow>{self.info}</yellow> -> <yellow>Channel 1 <keyword>Frost</keyword>. Draw <green>2</green> cards.</yellow>"
+
+    def upgrade(self):
+        self.upgrade_markers()
+        self.cards = 2
+        self.info = "Channel 1 <keyword>Frost</keyword>. Draw 2 cards."
+
+    def apply(self, origin, enemies):
+        origin.channel_orb(orbs.Frost(), enemies)
+        origin.draw_cards(self.cards, clear_hand=False)
+
+class Chill(Card):
+    def __init__(self):
+        super().__init__("Chill", "Channel 1 <keyword>Frost</keyword> for each enemy in combat. <keyword>Exhaust</keyword>.", Rarity.COMMON, PlayerClass.DEFECT, CardType.SKILL, TargetType.ANY, energy_cost=0)
+        self.exhaust = True
+        self.innate = False
+        self.upgrade_preview += f"<yellow>{self.info}</yellow> -> <yellow><green><keyword>Innate</keyword>.</green> Channel 1 <keyword>Frost</keyword> for each enemy in combat. <keyword>Exhaust</keyword>.</yellow>"
+
+    def upgrade(self):
+        self.upgrade_markers()
+        self.innate = True
+        self.info = "<keyword>Innate</keyword>. Channel 1 <keyword>Frost</keyword> for each enemy in combat. <keyword>Exhaust</keyword>."
+
+    def apply(self, origin, enemies):
+        for _ in enemies:
+            origin.channel_orb(orbs.Frost(), enemies)
+
+class Defragment(Card):
+    def __init__(self):
+        super().__init__("Defragment", "Gain 1 <buff>Focus</buff>.", Rarity.UNCOMMON, PlayerClass.DEFECT, CardType.POWER, TargetType.YOURSELF, energy_cost=1)
+        self.focus = 1
+        self.upgrade_preview += f"<yellow>{self.info}</yellow> -> <yellow>Gain <green>2</green> <buff>Focus</buff>.</yellow>"
+
+    def upgrade(self):
+        self.upgrade_markers()
+        self.focus = 2
+        self.info = "Gain 2 <buff>Focus</buff>."
+
+    def apply(self, origin):
+        ei.apply_effect(origin, None, effect_catalog.Focus, self.focus)
+
 def create_all_cards() -> Sequence[Card]:
     cards = [card() for card in (
         # ----------IRONCLAD CARDS------------
@@ -1007,6 +1100,13 @@ def create_all_cards() -> Sequence[Card]:
         BattleTrance, BloodForBlood, Bloodletting, BurningPact, Carnage, Combust, DarkEmbrace, Disarm, Dropkick, DualWield, Entrench, Evolve, FeelNoPain,
         FireBreathing, FlameBarrier, GhostlyArmor, Hemokinesis, InfernalBlade, Inflame, Intimidate, Metallicize, PowerThrough, Pummel, Rage,
         # Rare Cards
-        Barricade, Berzerk, Bludgeon, Brutality, Corruption
+        Barricade, Berzerk, Bludgeon, Brutality, Corruption,
+        # ----------DEFECT CARDS------------
+        # Starter(basic) cards
+        DefectStrike, DefectDefend, Zap,
+        # Common Cards
+        Coolheaded, Chill,
+        # Uncommon Cards
+        Defragment,
     )]
     return cards
