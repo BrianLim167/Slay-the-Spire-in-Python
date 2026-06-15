@@ -441,7 +441,7 @@ What do you do?''')
         print()
         sleep(0.8)
         ansiprint(f'<bold>[Banana]</bold> <green>Heal {math.floor(player.max_health / 3)} HP</green> \n<bold>[Donut]</bold> <green>Max HP +5</green> \n<bold>[Box]</bold> <green>Recieve a relic.</green> <red>Become Cursed: <bold>Regret</bold></red>')
-        ansiprint(f'<keyword>Regret</keyword> | <yellow>{card_catalog.create_all_cards()["Regret"]["Info"]}</yellow>') # curse is purple
+        ansiprint(f'<keyword>Regret</keyword> | <yellow>{card_catalog.Regret().info}</yellow>') # curse is purple
         option = input('> ').lower()
         if option == 'banana':
             ansiprint('You eat the <yellow>banana</yellow>. It is nutritious and slightly <light-blue>magical</light-blue>, healing you.')

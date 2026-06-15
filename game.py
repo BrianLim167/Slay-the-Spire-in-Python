@@ -11,11 +11,16 @@ from ansi_tags import ansiprint
 from combat import Combat
 from definitions import CombatTier, EncounterType, State
 from enemy import Enemy
-from events import choose_event
+from events import choose_event, global_events, act1_events
 from message_bus_tools import Message, bus
 from player import Player
 from rest_site import RestSite
 from shop import Shop
+
+
+class EncounterOverride(Exception):
+    """Raised to abort the current encounter and replace it with something else."""
+    pass
 
 
 class Game:
@@ -112,6 +117,8 @@ class Game:
             return self._handle_resource_command(command, "hp")
         if command.lower().startswith("kill "):
             return self._handle_kill_command(command)
+        if command.lower().startswith("event"):
+            return self._handle_event_command(command)
         return False
 
     def _handle_collection_command(self, command: str, collection: str) -> bool:
@@ -254,6 +261,31 @@ class Game:
         target_enemy.die()
         ansiprint(f"<green>Debug:</green> Killed {target_enemy.name}.")
         return True
+
+    def _handle_event_command(self, command: str) -> bool:
+        parts = command.split(maxsplit=1)
+        if not self.debug:
+            ansiprint("<red>Debug mode is required for 'event'. Run with --debug.</red>")
+            return True
+        all_events = global_events + act1_events
+        event_lookup = {func.__name__.removeprefix("event_").lower(): func for func in all_events}
+        if len(parts) < 2:
+            names = ", ".join(func.__name__.removeprefix("event_") for func in all_events)
+            ansiprint(f"<red>Usage: event <name></red>\nAvailable: {names}")
+            return True
+        name = parts[1].strip().lower()
+        if name not in event_lookup:
+            names = ", ".join(func.__name__.removeprefix("event_") for func in all_events)
+            ansiprint(f"<red>Unknown event '{parts[1].strip()}'.</red>\nAvailable: {names}")
+            return True
+        event_func = event_lookup[name]
+        import inspect
+        event_args = inspect.getfullargspec(event_func)
+        if 'game_map' in event_args[0]:
+            event_func(game_map=self.game_map, player=self.player)
+        else:
+            event_func(player=self.player)
+        raise EncounterOverride()
 
     @staticmethod
     def _normalize_name(name: str) -> str:
@@ -421,6 +453,12 @@ class Game:
         ansiprint(f"<green>Debug:</green> Gold set to <yellow>{self.player.gold}</yellow>.")
 
     def play(self, encounter: game_map.Encounter, the_map: game_map.GameMap):
+        try:
+            self._play_encounter(encounter)
+        except EncounterOverride:
+            self.current_encounter = None
+
+    def _play_encounter(self, encounter: game_map.Encounter):
         if encounter.type == EncounterType.START:
             pass
         elif encounter.type == EncounterType.REST_SITE:
