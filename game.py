@@ -18,11 +18,6 @@ from rest_site import RestSite
 from shop import Shop
 
 
-class EncounterOverride(Exception):
-    """Raised to abort the current encounter and replace it with something else."""
-    pass
-
-
 class Game:
     PLAYER_CLASSES = ["Ironclad", "Defect"]
 
@@ -285,7 +280,7 @@ class Game:
             event_func(game_map=self.game_map, player=self.player)
         else:
             event_func(player=self.player)
-        raise EncounterOverride()
+        return True
 
     @staticmethod
     def _normalize_name(name: str) -> str:
@@ -453,12 +448,6 @@ class Game:
         ansiprint(f"<green>Debug:</green> Gold set to <yellow>{self.player.gold}</yellow>.")
 
     def play(self, encounter: game_map.Encounter, the_map: game_map.GameMap):
-        try:
-            self._play_encounter(encounter)
-        except EncounterOverride:
-            self.current_encounter = None
-
-    def _play_encounter(self, encounter: game_map.Encounter):
         if encounter.type == EncounterType.START:
             pass
         elif encounter.type == EncounterType.REST_SITE:
